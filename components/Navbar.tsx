@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// components/Navbar.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 
 export default function Navbar() {
@@ -14,6 +13,7 @@ export default function Navbar() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
+  const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
@@ -21,36 +21,40 @@ export default function Navbar() {
       try {
         setLoading(true);
 
-        // Use getUser() which is more secure as it validates with Auth server
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
+        // Safely get auth session - won't throw an error if not authenticated
+        const { data, error } = await supabase.auth.getSession();
 
-        if (error) {
-          console.error('Error fetching user:', error);
+        // If there's no session or an error, handle it gracefully
+        if (error || !data.session) {
+          console.log('No authenticated session found');
           setUser(null);
           setProfile(null);
+          setLoading(false);
           return;
         }
 
-        setUser(user);
+        // If we have a session, set the user
+        setUser(data.session.user);
 
         // If user is authenticated, fetch their profile
-        if (user) {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
+        if (data.session?.user) {
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.session.user.id)
+              .single();
 
-          if (profileError) {
-            console.error('Error fetching profile:', profileError);
+            if (profileError) {
+              console.error('Error fetching profile:', profileError);
+              setProfile(null);
+            } else {
+              setProfile(profileData);
+            }
+          } catch (profileErr) {
+            console.error('Error in profile fetch:', profileErr);
             setProfile(null);
-            return;
           }
-
-          setProfile(profileData);
         }
       } catch (err) {
         console.error('Unexpected error:', err);
@@ -63,12 +67,15 @@ export default function Navbar() {
 
     fetchUserAndProfile();
 
-    // Set up subscription for auth changes
+    // Set up subscription for auth changes with error handling
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      // When auth state changes, call getUser() again to validate
-      fetchUserAndProfile();
+    } = supabase.auth.onAuthStateChange(async () => {
+      try {
+        await fetchUserAndProfile();
+      } catch (err) {
+        console.error('Error handling auth state change:', err);
+      }
     });
 
     return () => {
@@ -92,6 +99,14 @@ export default function Navbar() {
     }
 
     return '?';
+  };
+
+  // Handle Find Work link click - redirect to login if not authenticated
+  const handleFindWorkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!user) {
+      e.preventDefault();
+      router.push('/auth');
+    }
   };
 
   return (
@@ -126,6 +141,7 @@ export default function Navbar() {
             </Link>
             <Link
               href="/find-work"
+              onClick={handleFindWorkClick}
               className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
             >
               Find Work
@@ -158,7 +174,7 @@ export default function Navbar() {
               </div>
             ) : (
               <Link
-                href="/"
+                href="/auth"
                 className="ml-4 px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
               >
                 Sign In
@@ -221,6 +237,7 @@ export default function Navbar() {
           </Link>
           <Link
             href="/find-work"
+            onClick={handleFindWorkClick}
             className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
           >
             Find Work
@@ -289,7 +306,7 @@ export default function Navbar() {
           ) : (
             <div className="px-4">
               <Link
-                href="/"
+                href="/auth"
                 className="block px-4 py-2 rounded-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700 text-center"
               >
                 Sign In

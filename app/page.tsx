@@ -1,7 +1,33 @@
-// app/page.tsx
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/utils/supabase/client';
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = createClient();
+
+  // Get the returnUrl from search params if present
+  const returnUrl = searchParams.get('returnUrl');
+
+  // Check for the authentication state when component mounts
+  useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      // If user is logged in and there's a returnUrl, redirect to it
+      if (session && returnUrl) {
+        router.push(returnUrl);
+      }
+    };
+
+    checkAuth();
+  }, [supabase, router, returnUrl]);
+
   return (
     <div className="relative isolate overflow-hidden">
       <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8">
@@ -21,11 +47,10 @@ export default function Home() {
             >
               Discover Creators
             </Link>
-            <Link
-              href="/auth?tab=signup"
-              className="text-sm font-semibold leading-6 text-gray-900 hover:opacity-70"
-            >
-              Join Us <span aria-hidden="true">→</span>
+            <Link href="/auth">
+              <button className="text-sm font-semibold leading-6 text-gray-900 hover:opacity-70">
+                Join Us <span aria-hidden="true">→</span>
+              </button>
             </Link>
           </div>
         </div>

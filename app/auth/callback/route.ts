@@ -9,6 +9,9 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
 
+  // Get the returnUrl if it exists
+  const returnUrl = requestUrl.searchParams.get('returnUrl');
+
   if (code) {
     const cookieStore = await cookies();
 
@@ -39,7 +42,6 @@ export async function GET(request: NextRequest) {
     }
 
     // After successful auth, check if the user's profile is complete
-    // Use getUser() for better security
     const {
       data: { user },
       error: userError,
@@ -67,7 +69,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/register', request.url));
     }
 
-    // If profile is complete, redirect to dashboard
+    // If there's a returnUrl, redirect there, otherwise go to dashboard
+    if (returnUrl) {
+      return NextResponse.redirect(new URL(returnUrl, request.url));
+    }
+
+    // If profile is complete and no returnUrl, redirect to dashboard
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
